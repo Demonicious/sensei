@@ -1,0 +1,29 @@
+{
+  "name": "sensei",
+  "version": "1.0.0",
+  "description": "A Discord Application Framework built for Developer Experience and Speed.",
+  "main": "lib/module.js",
+  "types": "lib",
+  "scripts": {
+    "build": "tsc -p .",
+    "dev": "tsc --watch",
+    "test": "node test/main.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "framework",
+    "discord.js",
+    "discordapp"
+  ],
+  "author": "Demonicious <demoncious@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.0",
+    "discord.js": "^12.2.0"
+  },
+  "devDependencies": {
+    "@types/chalk": "^2.2.0",
+    "@types/node": "^14.0.26"
+  }
+}
