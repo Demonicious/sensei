@@ -11,8 +11,6 @@ export default {
         return {
             value: <string>subject
         }
-
-        return false;
     },
     user: (subject : any) : boolean | any => {
         if(subject.length == 22) {

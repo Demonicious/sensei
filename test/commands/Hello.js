@@ -4,20 +4,16 @@ module.exports = class HelloCommand extends Command {
     init() {
         this.name  = "hello";
         this.alias = null;
-        this.args = [
+        this.args  = [
             {
                 name: "user",
-                type: "USER",
-            },
-            {
-                name: "message",
-                type: "STRING"
+                type: "user",
+                required: true,
             }
         ]
     }
 
-    run({ user, message }) {
+    run({ user }) {
         console.log(user);
-        console.log(message);
     }
 }
