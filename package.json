@@ -1,6 +1,6 @@
 {
   "name": "discord-sensei",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A Discord Application Framework built for Developer Experience and Speed.",
   "main": "./lib/module.js",
   "types": "./lib",
