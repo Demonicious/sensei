@@ -7,7 +7,6 @@ import Log          from "./Log";
 import ConfigInterface          from "../utils/interfaces/ConfigInterface";
 import CommandInterface         from "../utils/interfaces/CommandInterface";
 import CallableInterface        from "../utils/interfaces/CallableInterface";
-import SenseiCommandInterface   from "../utils/interfaces/SenseiCommandInterface";
 import ArgumentInterface        from "../utils/interfaces/ArgumentInterface";
 
 import trim_char        from "./../utils/helpers/trim_char";
@@ -71,8 +70,12 @@ export default class Bot {
     }
     
     private async _handle_delete(message : Discord.Message | any) : Promise<any> {
-        if(this.delete_hook.hasOwnProperty(message.id))
-            return this.delete_hook[message.id]['callback'](message, this.delete_hook[message.id]['args']);
+        if(this.delete_hook.hasOwnProperty(message.id)) {
+            let cb = this.delete_hook[message.id]['callback'];
+            let args = {...this.delete_hook[message.id]['args']};
+            delete(this.delete_hook[message.id]);
+            return cb(message, args);
+        }
     }
 
     private async _handle_message(message : Discord.Message) : Promise<any> {

@@ -13,8 +13,13 @@ export default class Command implements SenseiCommandInterface {
     args     : ArgumentInterface[] | null     | undefined;
     cooldown : number              | null     | undefined;
     
-    run   : Function            | null     | undefined;
-    init  : Function            | null     | undefined;
+    run        : Function | null | undefined;
+    after_run  : Function | null | undefined;
+    before_run : Function | null | undefined;
+    on_update  : Function | null | undefined;
+    on_delete  : Function | null | undefined;
+
+    init  : Function | null | undefined;
 
     constructor(client : Discord.Client, message : Discord.Message, info : BotInfoInterface) {
         this._client = client;
