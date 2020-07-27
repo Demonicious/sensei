@@ -17,107 +17,65 @@ import BotInfoInterface from "../utils/interfaces/BotInfoInterface";
 export default class Bot {
     private client              : Discord.Client;
 
-    private prefix              : string | string[] = 'af+';
-    private commands_directory  : string = "./commands";
-    private token               : string = "";
-    private report_errors       : boolean = true;
-    private report_not_found    : boolean = false;
-    private enable_help_command : boolean = true;
+    private prefix              : string | string[];
+    private commands_directory  : string;
+    private token               : string;
+    private report_errors       : boolean;
+    private report_not_found    : boolean;
+    private enable_help_command : boolean;
 
-    private info                : BotInfoInterface = {
-        name: 'Sensei 2',
-        theme_color: '#74a7f5',
-        secondary_color: '#36393f',
-        danger_color   : '#ff3030',
-        success_color  : '#30ff66'
-    }
+    private info                : BotInfoInterface;
 
-    private commands            : any[] = [];
-    private names               : string[] = [];
+    private commands            : any[];
+    private names               : string[];
     private cooldowns           : Set<unknown>;
+
+    private update_hook         : any;
+    private delete_hook         : any;
 
     constructor(config: null | ConfigInterface) {
         this.client = new Discord.Client();
+
+        this.prefix             = 'af+';
+        this.commands_directory = "./commands";
+        this.token              = "";
+
+        this.report_errors       = true;
+        this.report_not_found    = false;
+        this.enable_help_command = true;
+
+        this.info = {
+            name:            'Sensei 2',
+            theme_color:     '#74a7f5',
+            secondary_color: '#36393f',
+            danger_color   : '#ff3030',
+            success_color  : '#30ff66'
+        };
+
+        this.update_hook = {};
+        this.delete_hook = {};
+
+        this.commands  = [];
+        this.names     = [];
         this.cooldowns = new Set();
+
         Log.Info('A new client was created.');
         if(config) {
             this.configure(config);
         }
     }
 
-    public configure(config : ConfigInterface) : Bot {
-        this.prefix               = config.prefix;
-        this.token                = config.token;
-        this.commands_directory   = config.commands_directory;
-
-        if(typeof config.report_errors != 'undefined')
-            this.report_errors = config.report_errors;
-        if(typeof config.report_not_found != 'undefined')
-            this.report_not_found = config.report_not_found;
-        if(typeof config.enable_help_command != 'undefined')
-            this.enable_help_command = config.enable_help_command;
-
-        if(typeof config.info != 'undefined') {
-            if(config.info.name)
-                this.info.name = config.info.name;
-            if(config.info.theme_color)
-                this.info.theme_color = config.info.theme_color;
-            if(config.info.secondary_color)
-                this.info.secondary_color = config.info.secondary_color;
-            if(config.info.danger_color)
-                this.info.danger_color = config.info.danger_color;
-            if(config.info.success_color)
-                this.info.success_color = config.info.success_color;
-        }
-
-        Log.Success('Configured Successfully.');
-        return this;
+    private async _handle_update(message : Discord.Message | any) : Promise<any> {
+        if(this.update_hook.hasOwnProperty(message.id))
+            return this.update_hook[message.id]['callback'](message, this.update_hook[message.id]['args']);
+    }
+    
+    private async _handle_delete(message : Discord.Message | any) : Promise<any> {
+        if(this.delete_hook.hasOwnProperty(message.id))
+            return this.delete_hook[message.id]['callback'](message, this.delete_hook[message.id]['args']);
     }
 
-    private _pre_process() {
-        this._setup_prefix();
-        this._load_commands();
-        this._system_events();
-    }
-
-    private _setup_prefix() {
-        this.prefix = (this.prefix instanceof Array) ? this.prefix.map(p => p.trim().toLowerCase()) : this.prefix.trim().toLowerCase();
-        Log.Progress('Prefixes Setup', 30);
-    }
-
-    private _load_commands() {
-        let files : string[] = readdirSync(this.commands_directory);
-        this.commands = files.map(file => {
-            if(!file.startsWith('_')) {
-                if(file.endsWith('.js')) {
-                    let construct = (require(resolve(this.commands_directory, file)));
-                    let instance = new construct();
-
-                    if(!this.names.includes(instance.name.toLowerCase())) {
-                        this.names = [...this.names, instance.name.toLowerCase()];
-                        return {
-                            instance,
-                            construct
-                        }
-                    } else {
-                        Log.Warning(new Error(`Command ${instance.name} already exists. Multiple commands may not have same names.`));
-                    }
-                }
-            }
-
-            return null
-        }).filter(command => command);
-
-        Log.Progress('Commands Setup', 45);
-    }
-
-    private _system_events() {
-        this.client.on("message", this._handle_message.bind(this));
-
-        Log.Progress('System Events Setup', 85);
-    }
-
-    private _handle_message(message : Discord.Message) {
+    private async _handle_message(message : Discord.Message) : Promise<any> {
         if(message.author.bot) return;
         message.content = message.content.trim();
 
@@ -145,7 +103,7 @@ export default class Bot {
             if(command) {
                 subject = command.subject;
                 let construct : any = command.construct;
-                let instance : SenseiCommandInterface = command.instance;
+                let instance = new construct(this.client, message, this.info);
 
                 if(instance.cooldown) {
                     if(this.cooldowns.has(`${instance.name}_${message.author.id}`)) {
@@ -154,13 +112,12 @@ export default class Bot {
                 }
 
                 if(instance.args) {
-                    const [args, result] : any = this._determine_arguments.bind(this)(instance.args, subject, message);
+                    const [args, result] : any = this._determine_arguments(instance.args, subject, message);
                     if(result) {
-                        let new_instance : any = new construct(this.client, message, this.info);
-                        if(new_instance.cooldown) {
-                            this._set_cooldown(new_instance.name, message.author.id, new_instance.cooldown);
+                        if(instance.cooldown) {
+                            this._set_cooldown(instance.name, message.author.id, instance.cooldown);
                         }
-                        return new_instance.run({...args});
+                        return this._execute_command(message, instance, args);
                     } else {
                         if(this.report_errors) {
                             const embed = new Discord.MessageEmbed();
@@ -208,11 +165,10 @@ export default class Bot {
                         }
                     }
                 } else {
-                    let new_instance : any = new construct(this.client, message, this.info);
-                    if(new_instance.cooldown) {
-                        this._set_cooldown(new_instance.name, message.author.id, new_instance.cooldown);
+                    if(instance.cooldown) {
+                        this._set_cooldown(instance.name, message.author.id, instance.cooldown);
                     }
-                    return new_instance.run();
+                    return this._execute_command(message, instance);
                 }
             } else if(this.report_not_found) {
                 const embed = new Discord.MessageEmbed();
@@ -229,6 +185,21 @@ export default class Bot {
         }
     }
 
+    private async _execute_command(message : Discord.Message, instance : any, args : any = {}) {
+        if(instance.before_run)
+            await instance.before_run({...args});
+        await instance.run({...args});
+        if(instance.after_run)
+            await instance.after_run({...args});
+
+        if(instance.on_update)
+            this.update_hook[message.id] = { args: args, callback: instance.on_update };
+        if(instance.on_delete)
+            this.delete_hook[message.id] = { args: args, callback: instance.on_delete };
+
+        return true;
+    }
+
     private _set_cooldown(name : string, id : string, duration : number) {
         this.cooldowns.add(`${name}_${id}`);
         setTimeout(() => {
@@ -237,6 +208,7 @@ export default class Bot {
     }
 
     private _determine_arguments(args : ArgumentInterface[], subject : string, message : Discord.Message) : any {
+        console.log(args);
         if(args.length) {
 
             let u_index = 0;
@@ -383,6 +355,79 @@ export default class Bot {
     public register_event(event : any, handler : any) {
         this.client.on(event, handler);
         Log.Info(`Registered an Event Handler for "${event}"`);
+    }
+
+    public configure(config : ConfigInterface) : Bot {
+        this.prefix               = config.prefix;
+        this.token                = config.token;
+        this.commands_directory   = config.commands_directory;
+
+        if(typeof config.report_errors != 'undefined')
+            this.report_errors = config.report_errors;
+        if(typeof config.report_not_found != 'undefined')
+            this.report_not_found = config.report_not_found;
+        if(typeof config.enable_help_command != 'undefined')
+            this.enable_help_command = config.enable_help_command;
+
+        if(typeof config.info != 'undefined') {
+            if(config.info.name)
+                this.info.name = config.info.name;
+            if(config.info.theme_color)
+                this.info.theme_color = config.info.theme_color;
+            if(config.info.secondary_color)
+                this.info.secondary_color = config.info.secondary_color;
+            if(config.info.danger_color)
+                this.info.danger_color = config.info.danger_color;
+            if(config.info.success_color)
+                this.info.success_color = config.info.success_color;
+        }
+
+        Log.Success('Configured Successfully.');
+        return this;
+    }
+
+    private _pre_process() {
+        this._setup_prefix();
+        this._load_commands();
+        this._system_events();
+    }
+
+    private _setup_prefix() {
+        this.prefix = (this.prefix instanceof Array) ? this.prefix.map(p => p.trim().toLowerCase()) : this.prefix.trim().toLowerCase();
+        Log.Progress('Prefixes Setup', 30);
+    }
+
+    private _load_commands() {
+        let files : string[] = readdirSync(this.commands_directory);
+        this.commands = files.map(file => {
+            if(!file.startsWith('_')) {
+                if(file.endsWith('.js')) {
+                    let construct = (require(resolve(this.commands_directory, file)));
+                    let instance = new construct(this.client, null, this.info);
+
+                    if(!this.names.includes(instance.name.toLowerCase())) {
+                        this.names = [...this.names, instance.name.toLowerCase()];
+                        return {
+                            instance,
+                            construct
+                        }
+                    } else {
+                        Log.Warning(new Error(`Command ${instance.name} already exists. Multiple commands may not have same names.`));
+                    }
+                }
+            }
+
+            return null
+        }).filter(command => command);
+
+        Log.Progress('Commands Setup', 45);
+    }
+
+    private _system_events() {
+        this.client.on("message", this._handle_message.bind(this));
+        this.client.on("messageUpdate", this._handle_update.bind(this));
+        this.client.on("messageDelete", this._handle_delete.bind(this));
+        Log.Progress('System Events Setup', 85);
     }
 
     public run(config : null | ConfigInterface) {
