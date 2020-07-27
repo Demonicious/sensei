@@ -2,8 +2,8 @@
   "name": "discord-sensei",
   "version": "2.0.0",
   "description": "A Discord Application Framework built for Developer Experience and Speed.",
-  "main": "lib/module.js",
-  "types": "lib",
+  "main": "./lib/module.js",
+  "types": "./lib",
   "scripts": {
     "build": "tsc -p .",
     "dev": "tsc --watch",
