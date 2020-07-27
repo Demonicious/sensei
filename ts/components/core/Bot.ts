@@ -211,7 +211,6 @@ export default class Bot {
     }
 
     private _determine_arguments(args : ArgumentInterface[], subject : string, message : Discord.Message) : any {
-        console.log(args);
         if(args.length) {
 
             let u_index = 0;
